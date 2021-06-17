@@ -6,13 +6,13 @@ import (
 	tradingfees "blockchain-data-collector/formulas/trading-fees"
 	"blockchain-data-collector/lmc"
 	"blockchain-data-collector/models"
-	simplelogger "blockchain-data-collector/simple-logger"
 	"blockchain-data-collector/uniswapPair"
 	"context"
 	"fmt"
 	"log"
 	"math/big"
 	"os"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,43 +23,72 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func initAndConnectDB() *mongo.Client {
+func itemExists(arrayType interface{}, item interface{}) bool {
+	arr := reflect.ValueOf(arrayType)
+
+	if arr.Kind() != reflect.Slice {
+		panic("Invalid data-type")
+	}
+
+	for i := 0; i < arr.Len(); i++ {
+		if arr.Index(i).Interface() == item {
+			return true
+		}
+	}
+
+	return false
+}
+
+func addressExists(array []*common.Address, item *common.Address) bool {
+	fmt.Println(array)
+	for i := 0; i < len(array); i++ {
+		if reflect.DeepEqual(array[i], item) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func initAndConnectDB() (*mongo.Client, error) {
 	// Get env file
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		fmt.Println("Error loading .env file")
+		return nil, err
 	}
 
 	// Client init
-	simplelogger.Log("mongo", os.Getenv("MONGO_DB"))
 	clientOptions := options.Client().ApplyURI(os.Getenv("MONGO_DB"))
 
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return nil, err
 	}
 
 	err = client.Connect(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return nil, err
 	}
 
-	return client
+	return client, nil
 }
 
-func initAndConnectEtherium() *ethclient.Client {
+func initAndConnectEtherium() (*ethclient.Client, error) {
 	client, err := ethclient.Dial("http://ethereumnode.defiterm-dev.net:8545")
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 
-	return client
+	return client, nil
 }
 
 func getLMCAddresses(collection *mongo.Collection) []*models.LMCAddress {
 	addresses := []*models.LMCAddress{}
 
-	cursor, err := collection.Find(context.TODO(), bson.M{})
+	cursor, err := collection.Find(context.TODO(), bson.M{"name": "dobreff"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -68,22 +97,26 @@ func getLMCAddresses(collection *mongo.Collection) []*models.LMCAddress {
 		var data models.Tenant
 		err := cursor.Decode(&data)
 
-		if len(data.Config.FE.Uniswap.RewardContracts) > 0 {
-			for key, pair := range data.Config.FE.Uniswap.RewardContracts {
-				// type assertion for interfaces
-				pairAddress := common.HexToAddress(pair.(string))
-
-				singleAddress := models.LMCAddress{
-					LmcName: key,
-					Address: common.Address(pairAddress),
-				}
-
-				addresses = append(addresses, &singleAddress)
-			}
-		}
-
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		if len(data.Config.FE.Uniswap.RewardContracts) > 0 {
+			for key, pair := range data.Config.FE.Uniswap.RewardContracts {
+				pairAddress := common.Address{}
+
+				// type assertion for interfaces
+				if p, ok := pair.(string); ok {
+					pairAddress = common.HexToAddress(p)
+
+					singleAddress := models.LMCAddress{
+						LmcName: key,
+						Address: common.Address(pairAddress),
+					}
+
+					addresses = append(addresses, &singleAddress)
+				}
+			}
 		}
 	}
 
@@ -94,8 +127,13 @@ func getLMCAddresses(collection *mongo.Collection) []*models.LMCAddress {
 	return addresses
 }
 
-func getTxData(collection *mongo.Collection) []*models.UserPosition {
+func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*models.UserPosition {
 	positions := []*models.UserPosition{}
+	lmcAddresses := []*common.Address{}
+
+	for _, singleAddress := range addresses {
+		lmcAddresses = append(lmcAddresses, &singleAddress.Address)
+	}
 
 	cursor, err := collection.Find(context.TODO(), bson.M{})
 	if err != nil {
@@ -106,27 +144,27 @@ func getTxData(collection *mongo.Collection) []*models.UserPosition {
 		var data models.TxData
 		err := cursor.Decode(&data)
 
-		assetAAmount, ok := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountBN.F)
-		_ = ok
-		assetBAmount, ok := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].AmountBN.F)
-		_ = ok
-		assetAPriceUSD, ok := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
-		_ = ok
-		assetBPriceUSD, ok := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
-		_ = ok
+		addressPointer := common.HexToAddress(data.LiquidityPool.A)
 
-		position := models.UserPosition{
-			AssetAAmount:   assetAAmount,
-			AssetBAmount:   assetBAmount,
-			AssetAPriceUSD: assetAPriceUSD,
-			AssetBPriceUSD: assetBPriceUSD,
+		if addressExists(lmcAddresses, &addressPointer) && len(data.LPAssets.ReserveTokens) > 0 {
+			assetAAmount, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountBN.F)
+			assetBAmount, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].AmountBN.F)
+			assetAPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
+			assetBPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
+
+			position := models.UserPosition{
+				AssetAAmount:   assetAAmount,
+				AssetBAmount:   assetBAmount,
+				AssetAPriceUSD: assetAPriceUSD,
+				AssetBPriceUSD: assetBPriceUSD,
+			}
+
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			positions = append(positions, &position)
 		}
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		positions = append(positions, &position)
 	}
 
 	if err := cursor.Err(); err != nil {
@@ -248,7 +286,10 @@ func getUniswapData(client *ethclient.Client, address common.Address) *models.Pr
 
 func main() {
 	// Init and connect to MongoDB
-	clientDB := initAndConnectDB()
+	clientDB, err := initAndConnectDB()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	dbTenant := clientDB.Database("LMaaS-TenantData")
 	collectionProjects := dbTenant.Collection("projects")
@@ -257,7 +298,10 @@ func main() {
 	collectionTransactions := dbClients.Collection("txdata_dobreff_rinkeby")
 
 	// Init etherium client
-	client := initAndConnectEtherium()
+	client, err := initAndConnectEtherium()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Get Uniswap data
 	uniswapPoolData := getUniswapData(client, common.HexToAddress("0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"))
@@ -266,30 +310,26 @@ func main() {
 	addresses := getLMCAddresses(collectionProjects)
 
 	// Get transactions data
-	positions := getTxData(collectionTransactions)
-
-	_ = positions
+	positions := getTxData(collectionTransactions, addresses)
 
 	// Get campaigns data
 	campaigns := getCampaignsData(client, addresses, uniswapPoolData)
 
-	_ = campaigns
+	// for _, position := range positions {
+	// 	spew.Dump(position)
+	// }
 
 	// for _, singleLMC := range campaigns {
 	// 	spew.Dump(singleLMC)
 	// }
 
-	// for _, position := range positions {
-	// spew.Dump(position)
-	// }
-
 	// Pool current data
 	priceMapping := make(map[string]*big.Float)
-	priceMapping["assetACurrent"] = new(big.Float).SetInt(campaigns[1].AssetAPortion)
-	priceMapping["assetACurrentUSD"] = campaigns[1].AssetAPortionValueUSD
+	priceMapping["assetACurrent"] = new(big.Float).SetInt(campaigns[0].AssetAPortion)
+	priceMapping["assetACurrentUSD"] = campaigns[0].AssetAPortionValueUSD
 
-	priceMapping["assetBCurrent"] = new(big.Float).SetInt(campaigns[1].AssetBPortion)
-	priceMapping["assetBCurrentUSD"] = campaigns[1].AssetBPortionValueUSD
+	priceMapping["assetBCurrent"] = new(big.Float).SetInt(campaigns[0].AssetBPortion)
+	priceMapping["assetBCurrentUSD"] = campaigns[0].AssetBPortionValueUSD
 
 	// Calculate current assets at current price
 	assetACurrentPrice := tradingfees.CalculateAssetPrice(

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"go.mongodb.org/mongo-driver/mongo/address"
 )
 
 type UserData struct {
@@ -31,9 +30,9 @@ type LMCAddress struct {
 }
 
 type Token struct {
-	Address map[string]address.Address `json:"address" bson:"address"`
-	Symbol  string                     `json:"symbol" bson:"symbol"`
-	Name    string                     `json:"name" bson:"name"`
+	Address map[string]string `json:"address" bson:"address"`
+	Symbol  string            `json:"symbol" bson:"symbol"`
+	Name    string            `json:"name" bson:"name"`
 
 	AmountBN  AmountBigFloat `json:"amountBN" bson:"amountBN"`
 	AmountUSD AmountBigFloat `json:"amountUSD" bson:"amountUSD"`
@@ -95,13 +94,13 @@ type Tenant struct {
 }
 
 type Pool struct {
-	Protocol        string            `json:"protocol" bson:"protocol"`
-	StakerAddr      address.Address   `json:"staker" bson:"staker"`
-	RTokensAddrs    []address.Address `json:"rewardTokens" bson:"rewardTokens"`
-	BonusTokenAddrs address.Address   `json:"bonusToken" bson:"bonusToken"`
-	LPAddr          address.Address   `json:"liquidityPool" bson:"liquidityPool"`
-	LPTokenAddr     address.Address   `json:"liquidityPoolToken" bson:"liquidityPoolToken"`
-	PTokensAddrs    []address.Address `json:"provisionTokens" bson:"provisionTokens"`
+	Protocol        string   `json:"protocol" bson:"protocol"`
+	StakerAddr      string   `json:"staker" bson:"staker"`
+	RTokensAddrs    []string `json:"rewardTokens" bson:"rewardTokens"`
+	BonusTokenAddrs string   `json:"bonusToken" bson:"bonusToken"`
+	LPAddr          string   `json:"liquidityPool" bson:"liquidityPool"`
+	LPTokenAddr     string   `json:"liquidityPoolToken" bson:"liquidityPoolToken"`
+	PTokensAddrs    []string `json:"provisionTokens" bson:"provisionTokens"`
 }
 
 type StakingConfig struct {
@@ -119,10 +118,14 @@ type LPAssets struct {
 	LPTokenToReserves map[string]*big.Float `json:"lpTokenToReserves" bson:"lpTokenToReserves"`
 }
 
+type LPool struct {
+	A string `json:"a" bson:"a"`
+}
+
 type TxData struct {
-	// Hash   address.Hash    `json:"hash" bson:"hash"`
-	// From   address.Address `json:"from" bson:"from"`
-	// To     address.Address `json:"to" bson:"to"`
+	// Hash   common.Hash    `json:"hash" bson:"hash"`
+	// From   common.Address `json:"from" bson:"from"`
+	// To     common.Address `json:"to" bson:"to"`
 	Status uint64 `json:"status" bson:"status"`
 	Data   string `json:"data" bson:"data"`
 	// CumulativeGasUsed uint64          `json:"cumulativeGasUsed" bson:"cumulativeGasUsed"`
@@ -135,9 +138,9 @@ type TxData struct {
 	BlockTime   time.Time `json:"blockTime" bson:"blockTime"`
 	BlockNumber uint64    `json:"blockNumber" bson:"blockNumber"`
 
-	Protocol string `json:"protocol" bson:"protocol"`
-	// LiquidityPool address.Address `json:"liquidityPool" bson:"liquidityPool"`
-	Timestamp time.Time `json:"timestamp" bson:"timestamp"`
-	Action    *Action   `json:"action" bson:"action"`
-	LPAssets  *LPAssets `json:"liquidityPoolAssets" bson:"liquidityPoolAssets"`
+	Protocol      string    `json:"protocol" bson:"protocol"`
+	LiquidityPool LPool     `json:"liquidityPool" bson:"liquidityPool"`
+	Timestamp     time.Time `json:"timestamp" bson:"timestamp"`
+	Action        *Action   `json:"action" bson:"action"`
+	LPAssets      *LPAssets `json:"liquidityPoolAssets" bson:"liquidityPoolAssets"`
 }
