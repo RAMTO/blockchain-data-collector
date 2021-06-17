@@ -6,23 +6,33 @@ import (
 	tradingfees "blockchain-data-collector/formulas/trading-fees"
 	"blockchain-data-collector/lmc"
 	"blockchain-data-collector/models"
+	simplelogger "blockchain-data-collector/simple-logger"
 	"blockchain-data-collector/uniswapPair"
 	"context"
 	"fmt"
 	"log"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func initAndConnectDB() *mongo.Client {
+	// Get env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	// Client init
-	clientOptions := options.Client().ApplyURI("")
+	simplelogger.Log("mongo", os.Getenv("MONGO_DB"))
+	clientOptions := options.Client().ApplyURI(os.Getenv("MONGO_DB"))
 
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
