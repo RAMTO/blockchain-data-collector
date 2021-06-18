@@ -44,10 +44,14 @@ type AmountBigFloat struct {
 }
 
 type UserPosition struct {
+	ExchangeRate   *big.Float
 	AssetAAmount   *big.Float
 	AssetBAmount   *big.Float
 	AssetAPriceUSD *big.Float
 	AssetBPriceUSD *big.Float
+	AssetAValueUSD *big.Float
+	AssetBValueUSD *big.Float
+	AssetsValueUSD *big.Float
 }
 
 type LMCampaign struct {
@@ -61,6 +65,7 @@ type LMCampaign struct {
 	AssetBPortionPriceUSD *big.Float
 	AssetAPortionValueUSD *big.Float
 	AssetBPortionValueUSD *big.Float
+	AssetsValueUSD        *big.Float
 }
 
 type Price struct {
