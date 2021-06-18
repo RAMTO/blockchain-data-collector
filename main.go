@@ -1,9 +1,7 @@
 package main
 
 import (
-	impermanentloss "blockchain-data-collector/formulas/impermanent-loss"
-	netgainloss "blockchain-data-collector/formulas/net-gain-loss"
-	tradingfees "blockchain-data-collector/formulas/trading-fees"
+	"blockchain-data-collector/formulas"
 	"blockchain-data-collector/lmc"
 	"blockchain-data-collector/models"
 	"blockchain-data-collector/uniswapPair"
@@ -332,17 +330,17 @@ func main() {
 	priceMapping["assetBCurrentUSD"] = campaigns[0].AssetBPortionValueUSD
 
 	// Calculate current assets at current price
-	assetACurrentPrice := tradingfees.CalculateAssetPrice(
+	assetACurrentPrice := formulas.CalculateAssetPrice(
 		priceMapping["assetACurrent"],
 		priceMapping["assetACurrentUSD"],
 	)
 
-	assetBCurrentPrice := tradingfees.CalculateAssetPrice(
+	assetBCurrentPrice := formulas.CalculateAssetPrice(
 		priceMapping["assetBCurrent"],
 		priceMapping["assetBCurrentUSD"],
 	)
 
-	currentAssetsCurrentPrices := tradingfees.CalculateAssetsValue(
+	currentAssetsCurrentPrices := formulas.CalculateAssetsValue(
 		[]*big.Float{assetACurrentPrice, assetBCurrentPrice},
 	)
 
@@ -358,51 +356,51 @@ func main() {
 		r := new(big.Float).Quo(exchangeRateCurrent, exchangeRateInitial)
 
 		// Calculate initial assets at initial price
-		assetAInitialPrice := tradingfees.CalculateAssetPrice(
+		assetAInitialPrice := formulas.CalculateAssetPrice(
 			position.AssetAAmount,
 			position.AssetAPriceUSD,
 		)
 
-		assetBInitialPrice := tradingfees.CalculateAssetPrice(
+		assetBInitialPrice := formulas.CalculateAssetPrice(
 			position.AssetBAmount,
 			position.AssetBPriceUSD,
 		)
 
-		initialAssetsInitialPrices := tradingfees.CalculateAssetsValue(
+		initialAssetsInitialPrices := formulas.CalculateAssetsValue(
 			[]*big.Float{assetAInitialPrice, assetBInitialPrice},
 		)
 
 		// Calculate initial assets at current price
-		initialAssetACurrentPrice := tradingfees.CalculateAssetPrice(
+		initialAssetACurrentPrice := formulas.CalculateAssetPrice(
 			position.AssetAAmount,
 			priceMapping["assetACurrentUSD"],
 		)
 
-		initialAssetBCurrentPrice := tradingfees.CalculateAssetPrice(
+		initialAssetBCurrentPrice := formulas.CalculateAssetPrice(
 			position.AssetBAmount,
 			priceMapping["assetBCurrentUSD"],
 		)
 
-		initialAssetsCurrentPrices := tradingfees.CalculateAssetsValue(
+		initialAssetsCurrentPrices := formulas.CalculateAssetsValue(
 			[]*big.Float{initialAssetACurrentPrice, initialAssetBCurrentPrice},
 		)
 
 		// Needed for pool trading fees
 		totalInitialAssetsCurrentPrices = new(big.Float).Add(totalInitialAssetsCurrentPrices, initialAssetsCurrentPrices)
 
-		il := impermanentloss.CalculateImpermanentLoss(r)
-		ilUSD := impermanentloss.CalculateImpermanentLossUSD(initialAssetsInitialPrices, il)
+		il := formulas.CalculateImpermanentLoss(r)
+		ilUSD := formulas.CalculateImpermanentLossUSD(initialAssetsInitialPrices, il)
 
 		poolTotalILUSD = new(big.Float).Add(poolTotalILUSD, ilUSD)
 	}
 
-	poolTradingFees := tradingfees.CalculateFees(
+	poolTradingFees := formulas.CalculateFees(
 		currentAssetsCurrentPrices,
 		totalInitialAssetsCurrentPrices,
 		poolTotalILUSD,
 	)
 
-	poolNetGainLoss := netgainloss.CalculateNetGainLoss(
+	poolNetGainLoss := formulas.CalculateNetGainLoss(
 		totalInitialAssetsCurrentPrices,
 		currentAssetsCurrentPrices,
 	)
