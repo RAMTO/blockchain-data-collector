@@ -4,6 +4,7 @@ import (
 	"blockchain-data-collector/formulas"
 	"blockchain-data-collector/lmc"
 	"blockchain-data-collector/models"
+	simplelogger "blockchain-data-collector/simple-logger"
 	"blockchain-data-collector/uniswapPair"
 	"context"
 	"fmt"
@@ -38,7 +39,6 @@ func itemExists(arrayType interface{}, item interface{}) bool {
 }
 
 func addressExists(array []*common.Address, item *common.Address) bool {
-	fmt.Println(array)
 	for i := 0; i < len(array); i++ {
 		if reflect.DeepEqual(array[i], item) {
 			return true
@@ -244,9 +244,11 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 		campaign := models.LMCampaign{
 			Address:               address.Address,
 			TotalStaked:           totalStaked,
+			CurrentRate:           currentRate,
 			AssetAPortion:         assetAPortion,
 			AssetBPortion:         assetBPortion,
-			CurrentRate:           currentRate,
+			AssetAPortionPriceUSD: priceAUSD,
+			AssetBPortionPriceUSD: priceBUSD,
 			AssetAPortionValueUSD: assetAPortionValueUSD,
 			AssetBPortionValueUSD: assetBPortionValueUSD,
 		}
@@ -257,7 +259,7 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 	return campaigns
 }
 
-func getUniswapData(client *ethclient.Client, address common.Address) *models.ProtocolData {
+func getPoolPairData(client *ethclient.Client, address common.Address) *models.ProtocolData {
 	uniswapPairContract, err := uniswapPair.NewUniswapPair(address, client)
 	if err != nil {
 		log.Fatal(err)
@@ -283,6 +285,10 @@ func getUniswapData(client *ethclient.Client, address common.Address) *models.Pr
 }
 
 func main() {
+	fmt.Println("")
+	fmt.Println("=================")
+	fmt.Println("=== APP START ===")
+
 	// Init and connect to MongoDB
 	clientDB, err := initAndConnectDB()
 	if err != nil {
@@ -302,7 +308,7 @@ func main() {
 	}
 
 	// Get Uniswap data
-	uniswapPoolData := getUniswapData(client, common.HexToAddress("0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"))
+	uniswapPoolData := getPoolPairData(client, common.HexToAddress("0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"))
 
 	// Get all tenant LMC addresses
 	addresses := getLMCAddresses(collectionProjects)
@@ -317,100 +323,97 @@ func main() {
 	// 	spew.Dump(position)
 	// }
 
-	// for _, singleLMC := range campaigns {
-	// 	spew.Dump(singleLMC)
-	// }
+	for _, singleLMC := range campaigns {
+		simplelogger.Log("LMC: ", singleLMC.Address)
 
-	// Pool current data
-	priceMapping := make(map[string]*big.Float)
-	priceMapping["assetACurrent"] = new(big.Float).SetInt(campaigns[0].AssetAPortion)
-	priceMapping["assetACurrentUSD"] = campaigns[0].AssetAPortionValueUSD
+		// Check for total staked
+		if singleLMC.TotalStaked.Cmp(big.NewInt(int64(0))) != 0 {
 
-	priceMapping["assetBCurrent"] = new(big.Float).SetInt(campaigns[0].AssetBPortion)
-	priceMapping["assetBCurrentUSD"] = campaigns[0].AssetBPortionValueUSD
+			// Calculate current LMC assets value at current price
+			currentAssetsCurrentPrices := formulas.CalculateAssetsValue(
+				[]*big.Float{singleLMC.AssetAPortionValueUSD, singleLMC.AssetBPortionValueUSD},
+			)
 
-	// Calculate current assets at current price
-	assetACurrentPrice := formulas.CalculateAssetPrice(
-		priceMapping["assetACurrent"],
-		priceMapping["assetACurrentUSD"],
-	)
+			// Inital values
+			poolTotalILUSD := new(big.Float).SetFloat64(0)
+			totalInitialAssetsCurrentPrices := new(big.Float).SetFloat64(0)
 
-	assetBCurrentPrice := formulas.CalculateAssetPrice(
-		priceMapping["assetBCurrent"],
-		priceMapping["assetBCurrentUSD"],
-	)
+			for _, position := range positions {
+				// Exchange rates of postion
+				exchangeRatePosition := new(big.Float).Quo(
+					position.AssetAAmount,
+					position.AssetBAmount,
+				)
 
-	currentAssetsCurrentPrices := formulas.CalculateAssetsValue(
-		[]*big.Float{assetACurrentPrice, assetBCurrentPrice},
-	)
+				// Exchange rates of pool
+				exchangeRateCurrent := new(big.Float).Quo(
+					new(big.Float).SetInt(singleLMC.AssetAPortion),
+					new(big.Float).SetInt(singleLMC.AssetBPortion),
+				)
 
-	// Inital values
-	poolTotalILUSD := new(big.Float).SetFloat64(0)
-	totalInitialAssetsCurrentPrices := new(big.Float).SetFloat64(0)
+				r := new(big.Float).Quo(exchangeRateCurrent, exchangeRatePosition)
 
-	for _, position := range positions {
-		// Exchange rates
-		exchangeRateInitial := new(big.Float).Quo(position.AssetAAmount, position.AssetBAmount)
-		exchangeRateCurrent := new(big.Float).Quo(priceMapping["assetACurrent"], priceMapping["assetBCurrent"])
+				// Calculate initial assets at initial price
+				assetAInitialPrice := formulas.CalculateAssetPrice(
+					position.AssetAAmount,
+					position.AssetAPriceUSD,
+				)
 
-		r := new(big.Float).Quo(exchangeRateCurrent, exchangeRateInitial)
+				assetBInitialPrice := formulas.CalculateAssetPrice(
+					position.AssetBAmount,
+					position.AssetBPriceUSD,
+				)
 
-		// Calculate initial assets at initial price
-		assetAInitialPrice := formulas.CalculateAssetPrice(
-			position.AssetAAmount,
-			position.AssetAPriceUSD,
-		)
+				initialAssetsInitialPrices := formulas.CalculateAssetsValue(
+					[]*big.Float{assetAInitialPrice, assetBInitialPrice},
+				)
 
-		assetBInitialPrice := formulas.CalculateAssetPrice(
-			position.AssetBAmount,
-			position.AssetBPriceUSD,
-		)
+				// Calculate initial assets at current price
+				initialAssetACurrentPrice := formulas.CalculateAssetPrice(
+					position.AssetAAmount,
+					singleLMC.AssetAPortionPriceUSD,
+				)
 
-		initialAssetsInitialPrices := formulas.CalculateAssetsValue(
-			[]*big.Float{assetAInitialPrice, assetBInitialPrice},
-		)
+				initialAssetBCurrentPrice := formulas.CalculateAssetPrice(
+					position.AssetBAmount,
+					singleLMC.AssetBPortionPriceUSD,
+				)
 
-		// Calculate initial assets at current price
-		initialAssetACurrentPrice := formulas.CalculateAssetPrice(
-			position.AssetAAmount,
-			priceMapping["assetACurrentUSD"],
-		)
+				initialAssetsCurrentPrices := formulas.CalculateAssetsValue(
+					[]*big.Float{initialAssetACurrentPrice, initialAssetBCurrentPrice},
+				)
 
-		initialAssetBCurrentPrice := formulas.CalculateAssetPrice(
-			position.AssetBAmount,
-			priceMapping["assetBCurrentUSD"],
-		)
+				// Needed for pool trading fees
+				totalInitialAssetsCurrentPrices = new(big.Float).Add(
+					totalInitialAssetsCurrentPrices,
+					initialAssetsCurrentPrices,
+				)
 
-		initialAssetsCurrentPrices := formulas.CalculateAssetsValue(
-			[]*big.Float{initialAssetACurrentPrice, initialAssetBCurrentPrice},
-		)
+				il := formulas.CalculateImpermanentLoss(r)
+				ilUSD := formulas.CalculateImpermanentLossUSD(initialAssetsInitialPrices, il)
 
-		// Needed for pool trading fees
-		totalInitialAssetsCurrentPrices = new(big.Float).Add(totalInitialAssetsCurrentPrices, initialAssetsCurrentPrices)
+				poolTotalILUSD = new(big.Float).Add(poolTotalILUSD, ilUSD)
+			}
 
-		il := formulas.CalculateImpermanentLoss(r)
-		ilUSD := formulas.CalculateImpermanentLossUSD(initialAssetsInitialPrices, il)
+			poolTradingFees := formulas.CalculateFees(
+				currentAssetsCurrentPrices,
+				totalInitialAssetsCurrentPrices,
+				poolTotalILUSD,
+			)
 
-		poolTotalILUSD = new(big.Float).Add(poolTotalILUSD, ilUSD)
+			poolNetGainLoss := formulas.CalculateNetGainLoss(
+				totalInitialAssetsCurrentPrices,
+				currentAssetsCurrentPrices,
+			)
+
+			fmt.Printf("%+v\n", "")
+			fmt.Printf("%+v\n", "Pool data:")
+			fmt.Printf("%+v\n", "* Trading fees:")
+			fmt.Printf("%+v\n", poolTradingFees)
+			fmt.Printf("%+v\n", "* IL USD:")
+			fmt.Printf("%+v\n", poolTotalILUSD)
+			fmt.Printf("%+v\n", "* Net Gain/Loss:")
+			fmt.Printf("%+v\n", poolNetGainLoss)
+		}
 	}
-
-	poolTradingFees := formulas.CalculateFees(
-		currentAssetsCurrentPrices,
-		totalInitialAssetsCurrentPrices,
-		poolTotalILUSD,
-	)
-
-	poolNetGainLoss := formulas.CalculateNetGainLoss(
-		totalInitialAssetsCurrentPrices,
-		currentAssetsCurrentPrices,
-	)
-
-	fmt.Printf("%+v\n", "")
-	fmt.Printf("%+v\n", "Pool data:")
-	fmt.Printf("%+v\n", "* Trading fees:")
-	fmt.Printf("%+v\n", poolTradingFees)
-	fmt.Printf("%+v\n", "* IL USD:")
-	fmt.Printf("%+v\n", poolTotalILUSD)
-	fmt.Printf("%+v\n", "* Net Gain/Loss:")
-	fmt.Printf("%+v\n", poolNetGainLoss)
 }

@@ -53,10 +53,12 @@ type UserPosition struct {
 type LMCampaign struct {
 	Address               common.Address
 	TotalStaked           *big.Int
-	AssetAPortion         *big.Int
-	AssetBPortion         *big.Int
 	Tokens                []*Token
 	CurrentRate           *big.Float
+	AssetAPortion         *big.Int
+	AssetBPortion         *big.Int
+	AssetAPortionPriceUSD *big.Float
+	AssetBPortionPriceUSD *big.Float
 	AssetAPortionValueUSD *big.Float
 	AssetBPortionValueUSD *big.Float
 }
