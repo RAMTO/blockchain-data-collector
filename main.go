@@ -160,7 +160,7 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 				assetBPriceUSD,
 			)
 
-			assetsBValueUSD := new(big.Float).Add(
+			assetsValueUSD := new(big.Float).Add(
 				assetAValueUSD,
 				assetBValueUSD,
 			)
@@ -178,7 +178,7 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 				AssetBPriceUSD: assetBPriceUSD,
 				AssetAValueUSD: assetAValueUSD,
 				AssetBValueUSD: assetBValueUSD,
-				AssetsValueUSD: assetsBValueUSD,
+				AssetsValueUSD: assetsValueUSD,
 			}
 
 			if err != nil {
