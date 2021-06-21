@@ -4,7 +4,6 @@ import (
 	"blockchain-data-collector/formulas"
 	"blockchain-data-collector/lmc"
 	"blockchain-data-collector/models"
-	simplelogger "blockchain-data-collector/simple-logger"
 	"blockchain-data-collector/uniswapPair"
 	"context"
 	"fmt"
@@ -145,12 +144,25 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 		addressPointer := common.HexToAddress(data.LiquidityPool.A)
 
 		if addressExists(lmcAddresses, &addressPointer) && len(data.LPAssets.ReserveTokens) > 0 {
-			assetAAmount, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountBN.F)
-			assetBAmount, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].AmountBN.F)
-			assetAAmountUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
-			assetBAmountUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].AmountUSD.F)
+			tokenPriceMap := make(map[int]*big.Float)
+
+			count := 0
+			for _, amount := range data.LPAssets.LPTokenToReserves {
+				amountBF, _ := new(big.Float).SetString(amount.F)
+				amountLPBF, _ := new(big.Float).SetString(data.Action.LPTokenAmount.F)
+				tokenPriceMap[count] = new(big.Float).Mul(
+					amountBF,
+					amountLPBF,
+				)
+				count++
+			}
+
+			assetAAmount := tokenPriceMap[0]
+			assetBAmount := tokenPriceMap[1]
 			assetAPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].PriceUSD.F)
 			assetBPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].PriceUSD.F)
+			assetAAmountUSD := new(big.Float).Mul(assetAAmount, assetAPriceUSD)
+			assetBAmountUSD := new(big.Float).Mul(assetBAmount, assetBPriceUSD)
 
 			assetsValueUSD := new(big.Float).Add(
 				assetAAmountUSD,
@@ -221,8 +233,8 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 			poolData.TotalSupply,
 		)
 
-		priceAUSD := new(big.Float).SetFloat64(0.22)
-		priceBUSD := new(big.Float).SetFloat64(2100)
+		priceAUSD := new(big.Float).SetFloat64(0.218)
+		priceBUSD := new(big.Float).SetFloat64(2019)
 
 		// Get decimals from Tokens
 		decimals := new(big.Float).SetInt(big.NewInt(int64(1000000000000000000)))
@@ -346,8 +358,6 @@ func main() {
 	// }
 
 	for _, singleLMC := range campaigns {
-		simplelogger.Log("LMC: ", singleLMC.Address)
-
 		// Check for total staked
 		if singleLMC.TotalStaked.Cmp(big.NewInt(int64(0))) != 0 {
 
@@ -361,13 +371,11 @@ func main() {
 				// Calculate initial assets at current price
 				initialAssetACurrentPrice := formulas.CalculateAssetPrice(
 					position.AssetAAmount,
-					// This is not current price
 					singleLMC.AssetAPortionPriceUSD,
 				)
 
 				initialAssetBCurrentPrice := formulas.CalculateAssetPrice(
 					position.AssetBAmount,
-					// This is not current price
 					singleLMC.AssetBPortionPriceUSD,
 				)
 

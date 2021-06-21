@@ -115,14 +115,14 @@ type StakingConfig struct {
 }
 
 type Action struct {
-	Name          string                 `json:"name" bson:"name"`
-	LPTokenAmount map[string]interface{} `json:"lpTokenAmount" bson:"lpTokenAmount"`
+	Name          string         `json:"name" bson:"name"`
+	LPTokenAmount AmountBigFloat `json:"lpTokenAmount" bson:"lpTokenAmount"`
 }
 
 type LPAssets struct {
-	LPToken           *Token                `json:"liquidityToken" bson:"liquidityToken"`
-	ReserveTokens     []*Token              `json:"reserveTokens" bson:"reserveTokens"`
-	LPTokenToReserves map[string]*big.Float `json:"lpTokenToReserves" bson:"lpTokenToReserves"`
+	LPToken           *Token                    `json:"liquidityToken" bson:"liquidityToken"`
+	ReserveTokens     []*Token                  `json:"reserveTokens" bson:"reserveTokens"`
+	LPTokenToReserves map[string]AmountBigFloat `json:"lpTokenToReserves" bson:"lpTokenToReserves"`
 }
 
 type LPool struct {
