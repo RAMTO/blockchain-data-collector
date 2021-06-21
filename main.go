@@ -147,22 +147,14 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 		if addressExists(lmcAddresses, &addressPointer) && len(data.LPAssets.ReserveTokens) > 0 {
 			assetAAmount, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountBN.F)
 			assetBAmount, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].AmountBN.F)
-			assetAPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
-			assetBPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
-
-			assetAValueUSD := new(big.Float).Mul(
-				assetAAmount,
-				assetAPriceUSD,
-			)
-
-			assetBValueUSD := new(big.Float).Mul(
-				assetBAmount,
-				assetBPriceUSD,
-			)
+			assetAAmountUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].AmountUSD.F)
+			assetBAmountUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].AmountUSD.F)
+			assetAPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].PriceUSD.F)
+			assetBPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].PriceUSD.F)
 
 			assetsValueUSD := new(big.Float).Add(
-				assetAValueUSD,
-				assetBValueUSD,
+				assetAAmountUSD,
+				assetBAmountUSD,
 			)
 
 			exchangeRate := new(big.Float).Quo(
@@ -174,10 +166,10 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 				ExchangeRate:   exchangeRate,
 				AssetAAmount:   assetAAmount,
 				AssetBAmount:   assetBAmount,
+				AssetAValueUSD: assetAAmountUSD,
+				AssetBValueUSD: assetBAmountUSD,
 				AssetAPriceUSD: assetAPriceUSD,
 				AssetBPriceUSD: assetBPriceUSD,
-				AssetAValueUSD: assetAValueUSD,
-				AssetBValueUSD: assetBValueUSD,
 				AssetsValueUSD: assetsValueUSD,
 			}
 
@@ -229,8 +221,8 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 			poolData.TotalSupply,
 		)
 
-		priceAUSD := new(big.Float).SetFloat64(0.39)
-		priceBUSD := new(big.Float).SetFloat64(2400)
+		priceAUSD := new(big.Float).SetFloat64(0.22)
+		priceBUSD := new(big.Float).SetFloat64(2100)
 
 		// Get decimals from Tokens
 		decimals := new(big.Float).SetInt(big.NewInt(int64(1000000000000000000)))
@@ -369,11 +361,13 @@ func main() {
 				// Calculate initial assets at current price
 				initialAssetACurrentPrice := formulas.CalculateAssetPrice(
 					position.AssetAAmount,
+					// This is not current price
 					singleLMC.AssetAPortionPriceUSD,
 				)
 
 				initialAssetBCurrentPrice := formulas.CalculateAssetPrice(
 					position.AssetBAmount,
+					// This is not current price
 					singleLMC.AssetBPortionPriceUSD,
 				)
 
@@ -393,12 +387,14 @@ func main() {
 				poolTotalILUSD = new(big.Float).Add(poolTotalILUSD, ilUSD)
 			}
 
+			// Calculate fees
 			poolTradingFees := formulas.CalculateFees(
 				singleLMC.AssetsValueUSD,
 				totalInitialAssetsCurrentPrices,
 				poolTotalILUSD,
 			)
 
+			// Calculate Net Gain Loss
 			poolNetGainLoss := formulas.CalculateNetGainLoss(
 				totalInitialAssetsCurrentPrices,
 				singleLMC.AssetsValueUSD,
