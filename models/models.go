@@ -17,11 +17,18 @@ type UserData struct {
 type ProtocolData struct {
 	Name        string
 	TotalSupply *big.Int
+	Tokens      []*TokenData
 	Reserves    struct {
 		Reserve0           *big.Int
 		Reserve1           *big.Int
 		BlockTimestampLast uint32
 	}
+}
+
+type TokenData struct {
+	Name     string
+	Address  common.Address
+	Decimals int
 }
 
 type LMCAddress struct {

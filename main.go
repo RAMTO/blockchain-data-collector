@@ -1,6 +1,7 @@
 package main
 
 import (
+	"blockchain-data-collector/erc20"
 	"blockchain-data-collector/formulas"
 	"blockchain-data-collector/lmc"
 	"blockchain-data-collector/models"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -124,7 +126,7 @@ func getLMCAddresses(collection *mongo.Collection) []*models.LMCAddress {
 	return addresses
 }
 
-func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*models.UserPosition {
+func getActivePositions(collection *mongo.Collection, addresses []*models.LMCAddress, poolData *models.ProtocolData) []*models.UserPosition {
 	positions := []*models.UserPosition{}
 	lmcAddresses := []*common.Address{}
 
@@ -141,24 +143,20 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 		var data models.TxData
 		err := cursor.Decode(&data)
 
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		addressPointer := common.HexToAddress(data.LiquidityPool.A)
 
+		// Check for lmc addreses for current tenant
 		if addressExists(lmcAddresses, &addressPointer) && len(data.LPAssets.ReserveTokens) > 0 {
-			tokenPriceMap := make(map[int]*big.Float)
+			lpTokensAmount, _ := new(big.Float).SetString(data.Action.LPTokenAmount.F)
+			amountABF, _ := new(big.Float).SetString(data.LPAssets.LPTokenToReserves[poolData.Tokens[0].Address.String()].F)
+			amountBBF, _ := new(big.Float).SetString(data.LPAssets.LPTokenToReserves[poolData.Tokens[1].Address.String()].F)
 
-			count := 0
-			for _, amount := range data.LPAssets.LPTokenToReserves {
-				amountBF, _ := new(big.Float).SetString(amount.F)
-				amountLPBF, _ := new(big.Float).SetString(data.Action.LPTokenAmount.F)
-				tokenPriceMap[count] = new(big.Float).Mul(
-					amountBF,
-					amountLPBF,
-				)
-				count++
-			}
-
-			assetAAmount := tokenPriceMap[0]
-			assetBAmount := tokenPriceMap[1]
+			assetAAmount := new(big.Float).Mul(lpTokensAmount, amountABF)
+			assetBAmount := new(big.Float).Mul(lpTokensAmount, amountBBF)
 			assetAPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[0].PriceUSD.F)
 			assetBPriceUSD, _ := new(big.Float).SetString(data.LPAssets.ReserveTokens[1].PriceUSD.F)
 			assetAAmountUSD := new(big.Float).Mul(assetAAmount, assetAPriceUSD)
@@ -185,16 +183,8 @@ func getTxData(collection *mongo.Collection, addresses []*models.LMCAddress) []*
 				AssetsValueUSD: assetsValueUSD,
 			}
 
-			if err != nil {
-				log.Fatal(err)
-			}
-
 			positions = append(positions, &position)
 		}
-	}
-
-	if err := cursor.Err(); err != nil {
-		log.Fatal(err)
 	}
 
 	return positions
@@ -237,16 +227,17 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 		priceBUSD := new(big.Float).SetFloat64(2019)
 
 		// Get decimals from Tokens
-		decimals := new(big.Float).SetInt(big.NewInt(int64(1000000000000000000)))
+		decimalsA := new(big.Float).SetInt(math.BigPow(10, int64(poolData.Tokens[0].Decimals)))
+		decimalsB := new(big.Float).SetInt(math.BigPow(10, int64(poolData.Tokens[1].Decimals)))
 
 		assetAPortionEthers := new(big.Float).Quo(
 			new(big.Float).SetInt(assetAPortion),
-			decimals,
+			decimalsA,
 		)
 
 		assetBPortionEthers := new(big.Float).Quo(
 			new(big.Float).SetInt(assetBPortion),
-			decimals,
+			decimalsB,
 		)
 
 		assetAPortionValueUSD := new(big.Float).Mul(
@@ -309,10 +300,65 @@ func getPoolPairData(client *ethclient.Client, address common.Address) *models.P
 		log.Fatal(err)
 	}
 
+	token0Address, err := uniswapPairContract.UniswapPairCaller.Token0(&bind.CallOpts{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token0Contract, err := erc20.NewErc20(token0Address, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token0Decimals, err := token0Contract.Erc20Caller.Decimals(&bind.CallOpts{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token0Symbol, err := token0Contract.Erc20Caller.Symbol(&bind.CallOpts{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token0Obj := models.TokenData{
+		Name:     token0Symbol,
+		Address:  token0Address,
+		Decimals: int(token0Decimals),
+	}
+
+	token1Address, err := uniswapPairContract.UniswapPairCaller.Token1(&bind.CallOpts{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token1Contract, err := erc20.NewErc20(token1Address, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token1Decimals, err := token1Contract.Erc20Caller.Decimals(&bind.CallOpts{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token1Symbol, err := token1Contract.Erc20Caller.Symbol(&bind.CallOpts{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token1Obj := models.TokenData{
+		Name:     token1Symbol,
+		Address:  token1Address,
+		Decimals: int(token1Decimals),
+	}
+
+	tokenSlice := []*models.TokenData{&token0Obj, &token1Obj}
+
 	protocolData := models.ProtocolData{
 		Name:        "Uniswap",
 		TotalSupply: totalSuply,
 		Reserves:    reserves,
+		Tokens:      tokenSlice,
 	}
 
 	return &protocolData
@@ -347,11 +393,11 @@ func main() {
 	// Get all tenant LMC addresses
 	addresses := getLMCAddresses(collectionProjects)
 
-	// Get transactions data
-	positions := getTxData(collectionTransactions, addresses)
-
 	// Get campaigns data
 	campaigns := getCampaignsData(client, addresses, uniswapPoolData)
+
+	// Get transactions data
+	positions := getActivePositions(collectionTransactions, addresses, uniswapPoolData)
 
 	// for _, position := range positions {
 	// 	spew.Dump(position)
