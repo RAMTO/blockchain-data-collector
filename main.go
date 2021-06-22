@@ -223,8 +223,8 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 			poolData.TotalSupply,
 		)
 
-		priceAUSD := new(big.Float).SetFloat64(0.218)
-		priceBUSD := new(big.Float).SetFloat64(2019)
+		priceAUSD := new(big.Float).SetFloat64(0.212)
+		priceBUSD := new(big.Float).SetFloat64(1958)
 
 		// Get decimals from Tokens
 		decimalsA := new(big.Float).SetInt(math.BigPow(10, int64(poolData.Tokens[0].Decimals)))
@@ -269,8 +269,8 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 			Address:               address.Address,
 			TotalStaked:           totalStaked,
 			CurrentRate:           currentRate,
-			AssetAPortion:         assetAPortion,
-			AssetBPortion:         assetBPortion,
+			AssetAPortion:         assetAPortionEthers,
+			AssetBPortion:         assetBPortionEthers,
 			AssetAPortionPriceUSD: priceAUSD,
 			AssetBPortionPriceUSD: priceBUSD,
 			AssetAPortionValueUSD: assetAPortionValueUSD,
@@ -398,6 +398,10 @@ func main() {
 
 	// Get transactions data
 	positions := getActivePositions(collectionTransactions, addresses, uniswapPoolData)
+
+	// for _, campaign := range campaigns {
+	// 	spew.Dump(campaign)
+	// }
 
 	// for _, position := range positions {
 	// 	spew.Dump(position)

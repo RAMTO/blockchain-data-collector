@@ -66,8 +66,8 @@ type LMCampaign struct {
 	TotalStaked           *big.Int
 	Tokens                []*Token
 	CurrentRate           *big.Float
-	AssetAPortion         *big.Int
-	AssetBPortion         *big.Int
+	AssetAPortion         *big.Float
+	AssetBPortion         *big.Float
 	AssetAPortionPriceUSD *big.Float
 	AssetBPortionPriceUSD *big.Float
 	AssetAPortionValueUSD *big.Float
