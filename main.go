@@ -23,22 +23,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func itemExists(arrayType interface{}, item interface{}) bool {
-	arr := reflect.ValueOf(arrayType)
-
-	if arr.Kind() != reflect.Slice {
-		panic("Invalid data-type")
-	}
-
-	for i := 0; i < arr.Len(); i++ {
-		if arr.Index(i).Interface() == item {
-			return true
-		}
-	}
-
-	return false
-}
-
 func addressExists(array []*common.Address, item *common.Address) bool {
 	for i := 0; i < len(array); i++ {
 		if reflect.DeepEqual(array[i], item) {
@@ -49,7 +33,7 @@ func addressExists(array []*common.Address, item *common.Address) bool {
 	return false
 }
 
-func initAndConnectDB() (*mongo.Client, error) {
+func initAndConnectDB(context context.Context) (*mongo.Client, error) {
 	// Get env file
 	err := godotenv.Load()
 	if err != nil {
@@ -66,7 +50,7 @@ func initAndConnectDB() (*mongo.Client, error) {
 		return nil, err
 	}
 
-	err = client.Connect(context.Background())
+	err = client.Connect(context)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -76,7 +60,7 @@ func initAndConnectDB() (*mongo.Client, error) {
 }
 
 func initAndConnectEtherium() (*ethclient.Client, error) {
-	client, err := ethclient.Dial("http://ethereumnode.defiterm-dev.net:8545")
+	client, err := ethclient.Dial(os.Getenv("ETH_NODE_URL"))
 	if err != nil {
 		return nil, err
 	}
@@ -84,10 +68,10 @@ func initAndConnectEtherium() (*ethclient.Client, error) {
 	return client, nil
 }
 
-func getLMCAddresses(collection *mongo.Collection) []*models.LMCAddress {
+func getLMCAddressesByTenant(collection *mongo.Collection, tenant string) []*models.LMCAddress {
 	addresses := []*models.LMCAddress{}
 
-	cursor, err := collection.Find(context.TODO(), bson.M{"name": "dobreff"})
+	cursor, err := collection.Find(context.TODO(), bson.M{"name": tenant})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -369,8 +353,14 @@ func main() {
 	fmt.Println("=================")
 	fmt.Println("=== APP START ===")
 
+	// Config
+	config := make(map[string]string)
+	config["tenant"] = "client"
+	config["poolPairAddress"] = "0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"
+	config["txCollectionName"] = "txdata_dobreff_rinkeby"
+
 	// Init and connect to MongoDB
-	clientDB, err := initAndConnectDB()
+	clientDB, err := initAndConnectDB(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -379,7 +369,7 @@ func main() {
 	collectionProjects := dbTenant.Collection("projects")
 
 	dbClients := clientDB.Database("LMaaS-ClientData")
-	collectionTransactions := dbClients.Collection("txdata_dobreff_rinkeby")
+	collectionTransactions := dbClients.Collection(config["txCollectionName"])
 
 	// Init etherium client
 	client, err := initAndConnectEtherium()
@@ -388,10 +378,10 @@ func main() {
 	}
 
 	// Get Uniswap data
-	uniswapPoolData := getPoolPairData(client, common.HexToAddress("0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"))
+	uniswapPoolData := getPoolPairData(client, common.HexToAddress(config["poolPairAddress"]))
 
 	// Get all tenant LMC addresses
-	addresses := getLMCAddresses(collectionProjects)
+	addresses := getLMCAddressesByTenant(collectionProjects, config["tenant"])
 
 	// Get campaigns data
 	campaigns := getCampaignsData(client, addresses, uniswapPoolData)
