@@ -68,15 +68,15 @@ func initAndConnectEtherium() (*ethclient.Client, error) {
 	return client, nil
 }
 
-func getLMCAddressesByTenant(collection *mongo.Collection, tenant string) []*models.LMCAddress {
+func getLMCAddressesByTenant(collection *mongo.Collection, tenant string, context context.Context) []*models.LMCAddress {
 	addresses := []*models.LMCAddress{}
 
-	cursor, err := collection.Find(context.TODO(), bson.M{"name": tenant})
+	cursor, err := collection.Find(context, bson.M{"name": tenant})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for cursor.Next(context.TODO()) {
+	for cursor.Next(context) {
 		var data models.Tenant
 		err := cursor.Decode(&data)
 
@@ -110,7 +110,7 @@ func getLMCAddressesByTenant(collection *mongo.Collection, tenant string) []*mod
 	return addresses
 }
 
-func getActivePositions(collection *mongo.Collection, addresses []*models.LMCAddress, poolData *models.ProtocolData) []*models.UserPosition {
+func getActivePositions(collection *mongo.Collection, addresses []*models.LMCAddress, poolData *models.ProtocolData, context context.Context) []*models.UserPosition {
 	positions := []*models.UserPosition{}
 	lmcAddresses := []*common.Address{}
 
@@ -118,12 +118,12 @@ func getActivePositions(collection *mongo.Collection, addresses []*models.LMCAdd
 		lmcAddresses = append(lmcAddresses, &singleAddress.Address)
 	}
 
-	cursor, err := collection.Find(context.TODO(), bson.M{})
+	cursor, err := collection.Find(context, bson.M{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for cursor.Next(context.TODO()) {
+	for cursor.Next(context) {
 		var data models.TxData
 		err := cursor.Decode(&data)
 
@@ -359,8 +359,11 @@ func main() {
 	config["poolPairAddress"] = "0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"
 	config["txCollectionName"] = "txdata_dobreff_rinkeby"
 
+	// Context
+	ctx := context.Background()
+
 	// Init and connect to MongoDB
-	clientDB, err := initAndConnectDB(context.Background())
+	clientDB, err := initAndConnectDB(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -381,13 +384,13 @@ func main() {
 	uniswapPoolData := getPoolPairData(client, common.HexToAddress(config["poolPairAddress"]))
 
 	// Get all tenant LMC addresses
-	addresses := getLMCAddressesByTenant(collectionProjects, config["tenant"])
+	addresses := getLMCAddressesByTenant(collectionProjects, config["tenant"], ctx)
 
 	// Get campaigns data
 	campaigns := getCampaignsData(client, addresses, uniswapPoolData)
 
 	// Get transactions data
-	positions := getActivePositions(collectionTransactions, addresses, uniswapPoolData)
+	positions := getActivePositions(collectionTransactions, addresses, uniswapPoolData, ctx)
 
 	// for _, campaign := range campaigns {
 	// 	spew.Dump(campaign)
