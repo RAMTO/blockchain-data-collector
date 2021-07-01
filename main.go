@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"reflect"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -380,17 +381,47 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Get Uniswap data
-	uniswapPoolData := getPoolPairData(client, common.HexToAddress(config["poolPairAddress"]))
+	var wg sync.WaitGroup
+	var uniswapPoolData *models.ProtocolData
+	var addresses []*models.LMCAddress
+	var campaigns []*models.LMCampaign
+	var positions []*models.UserPosition
 
-	// Get all tenant LMC addresses
-	addresses := getLMCAddressesByTenant(collectionProjects, config["tenant"], ctx)
+	wg.Add(2)
 
-	// Get campaigns data
-	campaigns := getCampaignsData(client, addresses, uniswapPoolData)
+	go func() {
+		// Get Uniswap data
+		uniswapPoolData = getPoolPairData(client, common.HexToAddress(config["poolPairAddress"]))
 
-	// Get transactions data
-	positions := getActivePositions(collectionTransactions, addresses, uniswapPoolData, ctx)
+		wg.Done()
+	}()
+
+	go func() {
+		// Get all tenant LMC addresses
+		addresses = getLMCAddressesByTenant(collectionProjects, config["tenant"], ctx)
+
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	wg.Add(2)
+
+	go func() {
+		// Get campaigns data
+		campaigns = getCampaignsData(client, addresses, uniswapPoolData)
+
+		wg.Done()
+	}()
+
+	go func() {
+		// Get transactions data
+		positions = getActivePositions(collectionTransactions, addresses, uniswapPoolData, ctx)
+
+		wg.Done()
+	}()
+
+	wg.Wait()
 
 	// for _, campaign := range campaigns {
 	// 	spew.Dump(campaign)
