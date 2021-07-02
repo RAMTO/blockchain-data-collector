@@ -1,11 +1,9 @@
 package main
 
 import (
-	"blockchain-data-collector/erc20"
 	"blockchain-data-collector/formulas"
-	"blockchain-data-collector/lmc"
+	"blockchain-data-collector/generated"
 	"blockchain-data-collector/models"
-	"blockchain-data-collector/uniswapPair"
 	"context"
 	"fmt"
 	"log"
@@ -172,7 +170,7 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 	campaigns := []*models.LMCampaign{}
 
 	for _, address := range addresses {
-		lmcContract, err := lmc.NewLmc(address.Address, client)
+		lmcContract, err := generated.NewLmc(address.Address, client)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -263,7 +261,7 @@ func getCampaignsData(client *ethclient.Client, addresses []*models.LMCAddress, 
 }
 
 func getPoolPairData(client *ethclient.Client, address common.Address) *models.ProtocolData {
-	uniswapPairContract, err := uniswapPair.NewUniswapPair(address, client)
+	uniswapPairContract, err := generated.NewUniswapPair(address, client)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -283,7 +281,7 @@ func getPoolPairData(client *ethclient.Client, address common.Address) *models.P
 		log.Fatal(err)
 	}
 
-	token0Contract, err := erc20.NewErc20(token0Address, client)
+	token0Contract, err := generated.NewErc20(token0Address, client)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -309,7 +307,7 @@ func getPoolPairData(client *ethclient.Client, address common.Address) *models.P
 		log.Fatal(err)
 	}
 
-	token1Contract, err := erc20.NewErc20(token1Address, client)
+	token1Contract, err := generated.NewErc20(token1Address, client)
 	if err != nil {
 		log.Fatal(err)
 	}
