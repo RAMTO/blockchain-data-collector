@@ -60,7 +60,7 @@ func initAndConnectEtherium() (*ethclient.Client, error) {
 	return client, nil
 }
 
-func getLMCAddressesByTenant(collection *mongo.Collection, tenant string, context context.Context) []*models.LMCAddress {
+func getLMCAddressesByTenant(context context.Context, collection *mongo.Collection, tenant string) []*models.LMCAddress {
 	addresses := []*models.LMCAddress{}
 
 	cursor, err := collection.Find(context, bson.M{"name": tenant})
@@ -102,7 +102,7 @@ func getLMCAddressesByTenant(collection *mongo.Collection, tenant string, contex
 	return addresses
 }
 
-func getActivePositions(collection *mongo.Collection, addresses []*models.LMCAddress, poolData *models.ProtocolData, context context.Context) []*models.UserPosition {
+func getActivePositions(context context.Context, collection *mongo.Collection, addresses []*models.LMCAddress, poolData *models.ProtocolData) []*models.UserPosition {
 	positions := []*models.UserPosition{}
 	lmcAddresses := []*common.Address{}
 
@@ -389,17 +389,17 @@ func main() {
 	wg.Add(2)
 
 	go func() {
+		defer wg.Done()
+
 		// Get Uniswap data
 		uniswapPoolData = getPoolPairData(client, common.HexToAddress(config["poolPairAddress"]))
-
-		wg.Done()
 	}()
 
 	go func() {
-		// Get all tenant LMC addresses
-		addresses = getLMCAddressesByTenant(collectionProjects, config["tenant"], ctx)
+		defer wg.Done()
 
-		wg.Done()
+		// Get all tenant LMC addresses
+		addresses = getLMCAddressesByTenant(ctx, collectionProjects, config["tenant"])
 	}()
 
 	wg.Wait()
@@ -407,17 +407,17 @@ func main() {
 	wg.Add(2)
 
 	go func() {
+		defer wg.Done()
+
 		// Get campaigns data
 		campaigns = getCampaignsData(client, addresses, uniswapPoolData)
-
-		wg.Done()
 	}()
 
 	go func() {
-		// Get transactions data
-		positions = getActivePositions(collectionTransactions, addresses, uniswapPoolData, ctx)
+		defer wg.Done()
 
-		wg.Done()
+		// Get transactions data
+		positions = getActivePositions(ctx, collectionTransactions, addresses, uniswapPoolData)
 	}()
 
 	wg.Wait()
