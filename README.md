@@ -12,6 +12,7 @@ ETH_NODE_URL=<ETHERIUM_NODE_URL OR INFURA_API>
 ```
 
 Other part of the configuration should be provided in the main function:
+
 ```sh
 config := make(map[string]string)
 // Tenant data
@@ -21,7 +22,16 @@ config["poolPairAddress"] = ""
 // Name of the tenant collection
 config["txCollectionName"] = ""
 ```
+
 ## Run the app
+
 ```sh
 go run main.go
+```
+
+## Run the tests
+
+```sh
+cd tests
+go test
 ```
