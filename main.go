@@ -35,13 +35,6 @@ func addressExists(array []*common.Address, item *common.Address) bool {
 }
 
 func initAndConnectDB(context context.Context) (*mongo.Client, error) {
-	// Get env file
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Error loading .env file")
-		return nil, err
-	}
-
 	// Client init
 	clientOptions := options.Client().ApplyURI(os.Getenv("MONGO_DB"))
 
@@ -353,6 +346,13 @@ func main() {
 	fmt.Println("")
 	fmt.Println("=================")
 	fmt.Println("=== APP START ===")
+
+	// Get env file
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file")
+		log.Fatal(err)
+	}
 
 	// Config
 	config := make(map[string]string)
