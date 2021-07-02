@@ -9,6 +9,8 @@ App relies on some external configuration that should be present in .env file.
 ```sh
 MONGO_DB=<MONGO_DB_CONNECTION_STRING>
 ETH_NODE_URL=<ETHERIUM_NODE_URL OR INFURA_API>
+TENANT_DB=<TENAT_DB_NAME>
+CLIENT_DB=<CLIENT_DB_NAME>
 ```
 
 Other part of the configuration should be provided in the main function:
