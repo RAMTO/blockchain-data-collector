@@ -357,6 +357,7 @@ func main() {
 	config["tenant"] = "client"
 	config["poolPairAddress"] = "0x0Bd2f8af9f5E5BE43B0DA90FE00A817e538B9306"
 	config["txCollectionName"] = "txdata_dobreff_rinkeby"
+	config["projectsCollectionName"] = "projects"
 
 	// Context
 	ctx := context.Background()
@@ -367,10 +368,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dbTenant := clientDB.Database("LMaaS-TenantData")
-	collectionProjects := dbTenant.Collection("projects")
+	dbTenant := clientDB.Database(os.Getenv("TENANT_DB"))
+	collectionProjects := dbTenant.Collection(config["projectsCollectionName"])
 
-	dbClients := clientDB.Database("LMaaS-ClientData")
+	dbClients := clientDB.Database(os.Getenv("CLIENT_DB"))
 	collectionTransactions := dbClients.Collection(config["txCollectionName"])
 
 	// Init etherium client
